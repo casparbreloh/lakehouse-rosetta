@@ -4,6 +4,7 @@ import importlib.util
 import os
 import shutil
 import statistics
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -87,28 +88,49 @@ def load_upsert(fmt: str):
     return module
 
 
+def run_child(size: str, scenario: str) -> None:
+    fmt, impl_name = scenario.split(":")
+    base = pq.read_table(DATA / f"base_{size}.parquet")
+    stream = pq.read_table(DATA / f"stream_{size}.parquet")
+    module = load_upsert(fmt)
+    for name, setup, upsert in module.IMPLS:
+        if name == impl_name:
+            run_one(fmt, name, setup, upsert, base, stream, SHAPES[size])
+            return
+    print(f"unknown scenario {scenario}", file=sys.stderr)
+    sys.exit(2)
+
+
+def ensure_seed(size: str) -> None:
+    base = DATA / f"base_{size}.parquet"
+    stream = DATA / f"stream_{size}.parquet"
+    if base.exists() and stream.exists():
+        return
+    spec = importlib.util.spec_from_file_location("_seed", str(DATA / "seed.py"))
+    seed_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(seed_mod)
+    seed_mod.main()
+
+
 def main() -> None:
     size = os.environ.get("BENCH_SIZE")
     if size not in SHAPES:
         print(f"BENCH_SIZE must be one of {list(SHAPES)}", file=sys.stderr)
         sys.exit(2)
 
-    base_path = DATA / f"base_{size}.parquet"
-    stream_path = DATA / f"stream_{size}.parquet"
-    if not (base_path.exists() and stream_path.exists()):
-        spec = importlib.util.spec_from_file_location("_seed", str(DATA / "seed.py"))
-        seed_mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(seed_mod)
-        seed_mod.main()
+    scenario = os.environ.get("BENCH_SCENARIO")
+    if scenario:
+        run_child(size, scenario)
+        return
 
-    base = pq.read_table(base_path)
-    stream = pq.read_table(stream_path)
-    shapes = SHAPES[size]
-
+    ensure_seed(size)
     for fmt in FORMATS:
         module = load_upsert(fmt)
-        for impl_name, setup, upsert in module.IMPLS:
-            run_one(fmt, impl_name, setup, upsert, base, stream, shapes)
+        for impl_name, _, _ in module.IMPLS:
+            subprocess.run(
+                [sys.executable, __file__],
+                env={**os.environ, "BENCH_SCENARIO": f"{fmt}:{impl_name}"},
+            )
 
 
 if __name__ == "__main__":

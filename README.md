@@ -63,9 +63,11 @@ Run at multiple sizes and compare `peak MB` per scenario — flat-with-size mean
 
 70% updates / 30% inserts. Three batch shapes per run (many-small, even, few-large). 6-column schema (`id, source_path, content_hash, size_bytes, updated_at, payload`). See `data/seed.py`.
 
-## Why peak RSS, not Δrss
+## Why peak RSS
 
-Six scenarios share one process, so RSS is roughly monotonic across them and per-scenario Δrss is misleading. Sampling `psutil.Process().memory_info().rss` after every batch and tracking the max gives a per-scenario peak that doesn't bleed across runs.
+Each scenario runs in its own subprocess (the parent fans out via `BENCH_SCENARIO=<fmt>:<impl>`), so the per-scenario peak is honest — no contamination from earlier runs. Inside each scenario we sample `psutil.Process().memory_info().rss` after every batch and track the max, giving the highest RSS the upsert path holds during the timed loop.
+
+Cost: ~6× python + library startup per `bench-upsert.py` run. Worth it for an honest "does memory grow with table size?" signal across formats.
 
 ## Library pins
 
