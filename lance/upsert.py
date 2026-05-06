@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import os
 
-# friction: dlt-lancedb requires `_dlt_load_id` on merge-keyed tables; this env var asks dlt to add it.
-os.environ.setdefault("NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID", "TRUE")
+# lance Rust crate logs WARN once per table-existence probe during dlt's create-if-not-exists.
+# Harmless (probes fail because tables don't exist yet) but spammy. Suppress via Rust log filter.
+os.environ.setdefault("LANCE_LOG", "error")
 
 import dlt
 import lance
 import pyarrow as pa
-from dlt.destinations import lancedb
+from dlt.destinations import lance as lance_dest
+from dlt.destinations.adapters import lance_adapter
 
 
 # --- direct ---
@@ -32,7 +34,7 @@ def upsert_direct(uri: str, batch: pa.Table) -> None:
 def setup_dlt(warehouse: str, base: pa.Table):
     pipeline = dlt.pipeline(
         pipeline_name="bench",
-        destination=lancedb(lance_uri=warehouse),
+        destination=lance_dest(storage={"bucket_url": warehouse}),
         dataset_name="bench",
         pipelines_dir=f"{warehouse}/_pipelines",
     )
@@ -47,7 +49,7 @@ def setup_dlt(warehouse: str, base: pa.Table):
 
 def upsert_dlt(pipeline, batch: pa.Table) -> None:
     pipeline.run(
-        batch,
+        lance_adapter(batch, merge_key="id"),
         table_name="records",
         primary_key="id",
         write_disposition={"disposition": "merge", "strategy": "upsert"},

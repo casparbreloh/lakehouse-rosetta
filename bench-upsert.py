@@ -24,6 +24,10 @@ SHAPES = {
 
 FORMATS = ["iceberg", "delta", "lance"]
 
+SKIPS = {
+    "large": {"delta:direct", "delta:dlt"},
+}
+
 PROC = psutil.Process()
 
 
@@ -124,12 +128,17 @@ def main() -> None:
         return
 
     ensure_seed(size)
+    skips = SKIPS.get(size, set())
     for fmt in FORMATS:
         module = load_upsert(fmt)
         for impl_name, _, _ in module.IMPLS:
+            scenario = f"{fmt}:{impl_name}"
+            if scenario in skips:
+                print(f"{scenario:<18} skipped (size={size})", flush=True)
+                continue
             subprocess.run(
                 [sys.executable, __file__],
-                env={**os.environ, "BENCH_SCENARIO": f"{fmt}:{impl_name}"},
+                env={**os.environ, "BENCH_SCENARIO": scenario},
             )
 
 
