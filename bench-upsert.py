@@ -25,7 +25,7 @@ SHAPES = {
 FORMATS = ["iceberg", "delta", "lance"]
 
 SKIPS = {
-    "large": {"delta:direct", "delta:dlt"},
+    "large": {"delta:direct", "delta:dlt", "iceberg:direct", "iceberg:dlt"},
 }
 
 PROC = psutil.Process()
