@@ -1,0 +1,16 @@
+[project]
+name = "lakehouse-rosetta"
+version = "0.1.0"
+description = "Same upsert in Iceberg, Delta, and Lance — read side-by-side."
+requires-python = ">=3.11"
+dependencies = [
+    "pyiceberg[sql-sqlite]>=0.11",
+    "deltalake>=0.20",
+    "pylance>=0.20",
+    "dlt[pyiceberg,deltalake,lancedb]>=1.12",
+    "pyarrow>=18",
+    "psutil>=5.9",
+]
+
+[tool.uv]
+package = false
